@@ -1,0 +1,13 @@
+//========================================提交主分支
+git add .
+git commit -m 'daily-2021-7-30-1-readme'
+git push origin master
+
+
+//========================================新建分支
+
+git checkout  -b daily-2021-7-30-1-readme
+git add .
+git commit -m 'daily-2021-7-30-1-readme'
+git push origin daily-2021-7-30-1-readme
+git checkout master
