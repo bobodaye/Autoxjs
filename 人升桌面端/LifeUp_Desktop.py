@@ -287,7 +287,7 @@ class TaskManagerApp:
     def convert_timestamp(self, timestamp):
         print(f"Converting timestamp: {timestamp}")
         if timestamp == 0:
-            return "无截止时间"
+            return "无"
         return datetime.datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
 
     def complete_task(self, task_id, status):
@@ -377,133 +377,165 @@ class TaskManagerApp:
             messagebox.showerror("错误", "未找到任务详情")
 
     def open_task_detail_window(self, task_details):
-        print(f"Opening detail window for task {task_details['id']}")
         detail_window = tk.Toplevel(self.master)
         detail_window.title("任务详情")
-        detail_window.geometry("800x600")
-        detail_window.minsize(400, 500)
+        detail_window.geometry("600x600")
         self.center_window(detail_window)
 
-        detail_frame = tk.Frame(detail_window, bg='#ecf0f1')
-        detail_frame.pack(fill=tk.BOTH, expand=True)
+        form_frame = tk.Frame(detail_window, bg='#ecf0f1')
+        form_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        form_frame.columnconfigure(1, weight=1)
 
-        canvas = tk.Canvas(detail_frame, bg='#ecf0f1', highlightthickness=0)
-        scrollbar = ttk.Scrollbar(detail_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas, )
+        def validate_numeric_input(P):
+            if P.isdigit() or P == "":
+                return True
+            return False
 
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
+        validate_cmd = form_frame.register(validate_numeric_input)
 
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        tk.Label(form_frame, text="任务名称:", font=FONT, bg='#ecf0f1').grid(row=0, column=0, padx=5, pady=5,
+                                                                             sticky="w")
+        task_name_entry = tk.Entry(form_frame, font=FONT)
+        task_name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        task_name_entry.delete(0, "end")
+        task_name_entry.insert(0, task_details['name'])
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        tk.Label(form_frame, text="任务备注:", font=FONT, bg='#ecf0f1').grid(row=1, column=0, padx=5, pady=5,
+                                                                             sticky="w")
+        task_notes_entry = tk.Text(form_frame, height=8, font=FONT)
+        task_notes_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        task_notes_entry.insert("1.0", task_details['notes'])
 
-        # Title
-        title = tk.Label(scrollable_frame, text=task_details['name'], font=TITLE_FONT, anchor="w", bg='#ecf0f1',
-                         fg='#34495e')
-        title.pack(padx=10, pady=10, anchor="w")
+        tk.Label(form_frame, text="金币:", font=FONT, bg='#ecf0f1').grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        coin_frame = tk.Frame(form_frame, bg='#ecf0f1')
+        coin_frame.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
-        # Divider
-        divider = tk.Frame(scrollable_frame, bg='#bdc3c7', height=2)
-        divider.pack(fill=tk.X, padx=10, pady=5)
+        # 最小值标签
+        tk.Label(coin_frame, text="最小值:", font=FONT, bg='#ecf0f1').grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        task_coin_min_spinbox = tk.Spinbox(coin_frame, from_=0, to=1000, validate="key",
+                                           validatecommand=(validate_cmd, "%P"), font=FONT, width=10)
+        task_coin_min_spinbox.grid(row=0, column=1, padx=5, pady=5)
+        task_coin_min_spinbox.delete(0, "end")
+        task_coin_min_spinbox.insert(0, task_details['coin'])
 
-        # Reward Information
-        reward_info_frame = tk.LabelFrame(scrollable_frame, text="奖励信息", font=TASK_FONT, bg='#ecf0f1', fg='#34495e')
-        reward_info_frame.pack(fill=tk.X, padx=10, pady=5, anchor="w")
+        # 最大值标签
+        tk.Label(coin_frame, text="最大值:", font=FONT, bg='#ecf0f1').grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        task_coin_max_spinbox = tk.Spinbox(coin_frame, from_=0, to=1000, validate="key",
+                                           validatecommand=(validate_cmd, "%P"), font=FONT, width=10)
+        task_coin_max_spinbox.grid(row=0, column=3, padx=5, pady=5)
+        task_coin_max_spinbox.delete(0, "end")
+        task_coin_max_spinbox.insert(0, task_details['coin'] + task_details['coinVariable'])
 
-        tk.Label(reward_info_frame, text="金币:", font=FONT, bg='#ecf0f1').grid(row=0, column=0, sticky="w", padx=5,
-                                                                                pady=2)
-        coin_text = f"{task_details['coin']} - {task_details['coin'] + task_details['coinVariable']}"
-        tk.Label(reward_info_frame, text=coin_text, font=FONT, bg='#ecf0f1').grid(row=0, column=1, sticky="w", padx=5,
-                                                                                  pady=2)
+        tk.Label(form_frame, text="经验:", font=FONT, bg='#ecf0f1').grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        task_exp_spinbox = tk.Spinbox(form_frame, from_=0, to=1000, validate="key",
+                                      validatecommand=(validate_cmd, "%P"), font=FONT, width=47)
+        task_exp_spinbox.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        task_exp_spinbox.delete(0, "end")
+        task_exp_spinbox.insert(0, task_details['exp'])
 
-        tk.Label(reward_info_frame, text="经验:", font=FONT, bg='#ecf0f1').grid(row=1, column=0, sticky="w", padx=5,
-                                                                                pady=2)
-        exp_text = task_details['exp']
-        tk.Label(reward_info_frame, text=exp_text, font=FONT, bg='#ecf0f1').grid(row=1, column=1, sticky="w", padx=5,
-                                                                                 pady=2)
+        tk.Label(form_frame, text="技能:", font=FONT, bg='#ecf0f1').grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        skill_frame = tk.Frame(form_frame, bg='#ecf0f1')
+        skill_frame.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
 
-        tk.Label(reward_info_frame, text="技能属性:", font=FONT, bg='#ecf0f1').grid(row=2, column=0, sticky="w", padx=5,
-                                                                                   pady=2)
-        skill_text = ', '.join(self.skills_cache.get(skill_id, '未知技能') for skill_id in task_details['skillIds'])
-        skill_label = tk.Label(reward_info_frame, text=skill_text, font=FONT, bg='#ecf0f1', wraplength=500,
-                               justify="left")
-        skill_label.grid(row=2, column=1, sticky="w", padx=5, pady=2)
+        skill_vars = {}
+        col = 0
+        for skill_id, skill_name in self.skills_cache.items():
+            var = tk.BooleanVar()
+            cb = tk.Checkbutton(skill_frame, text=skill_name, variable=var, font=FONT, bg='#ecf0f1')
+            cb.grid(row=0, column=col, padx=1, pady=2, sticky="w")
+            skill_vars[skill_id] = var
+            skill_frame.columnconfigure(col, weight=1)
+            col += 1
 
-        tk.Label(reward_info_frame, text="奖励的商品:", font=FONT, bg='#ecf0f1').grid(row=3, column=0, sticky="w",
-                                                                                      padx=5, pady=2)
-        item_name = self.items_cache.get(task_details['itemId'], '未知商品')
-        tk.Label(reward_info_frame, text=item_name, font=FONT, bg='#ecf0f1').grid(row=3, column=1, sticky="w", padx=5,
-                                                                                  pady=2)
+        def update_skill_checkbuttons(*args):
+            selected_skills = sum(var.get() for var in skill_vars.values())
+            for skill_id, var in skill_vars.items():
+                if not var.get() and selected_skills >= 3:
+                    cb = skill_frame.grid_slaves(row=0, column=list(skill_vars.keys()).index(skill_id))[0]
+                    cb.config(state=tk.DISABLED)
+                else:
+                    cb = skill_frame.grid_slaves(row=0, column=list(skill_vars.keys()).index(skill_id))[0]
+                    cb.config(state=tk.NORMAL)
 
-        # Time Information
-        time_info_frame = tk.LabelFrame(scrollable_frame, text="时间信息", font=TASK_FONT, bg='#ecf0f1', fg='#34495e')
-        time_info_frame.pack(fill=tk.X, padx=10, pady=5, anchor="w")
+        for var in skill_vars.values():
+            var.trace_add("write", update_skill_checkbuttons)
 
-        tk.Label(time_info_frame, text="开始时间:", font=FONT, bg='#ecf0f1').grid(row=0, column=0, sticky="w", padx=5,
-                                                                                  pady=2)
-        start_time_text = self.convert_timestamp(task_details['startTime'])
-        tk.Label(time_info_frame, text=start_time_text, font=FONT, bg='#ecf0f1').grid(row=0, column=1, sticky="w",
-                                                                                      padx=5, pady=2)
+        for skill_id in task_details['skillIds']:
+            skill_vars[skill_id].set(True);
 
-        tk.Label(time_info_frame, text="截止时间:", font=FONT, bg='#ecf0f1').grid(row=1, column=0, sticky="w", padx=5,
-                                                                                  pady=2)
-        deadline_text = self.convert_timestamp(task_details['deadline'])
-        tk.Label(time_info_frame, text=deadline_text, font=FONT, bg='#ecf0f1').grid(row=1, column=1, sticky="w", padx=5,
-                                                                                    pady=2)
+        tk.Label(form_frame, text="任务分类:", font=FONT, bg='#ecf0f1').grid(row=5, column=0, padx=5, pady=5,
+                                                                             sticky="w")
+        task_category_combobox = ttk.Combobox(form_frame, values=[name for name, id_ in self.categories.items() if
+                                                                  id_ in [task_details['categoryId']]], font=FONT, state='readonly')
+        task_category_combobox.grid(row=5, column=1, padx=5, pady=5, sticky="ew")
+        task_category_combobox.current(0)
 
-        tk.Label(time_info_frame, text="提醒时间:", font=FONT, bg='#ecf0f1').grid(row=2, column=0, sticky="w", padx=5,
-                                                                                  pady=2)
-        remind_time_text = self.convert_timestamp(task_details['remindTime'])
-        tk.Label(time_info_frame, text=remind_time_text, font=FONT, bg='#ecf0f1').grid(row=2, column=1, sticky="w",
-                                                                                       padx=5, pady=2)
+        tk.Label(form_frame, text="频次:", font=FONT, bg='#ecf0f1').grid(row=6, column=0, padx=5, pady=5, sticky="w")
+        frequency_frame = tk.Frame(form_frame, bg='#ecf0f1')
+        frequency_frame.grid(row=6, column=1, padx=0, pady=5, sticky="ew")
 
-        tk.Label(time_info_frame, text="重复频次:", font=FONT, bg='#ecf0f1').grid(row=3, column=0, sticky="w", padx=5,
-                                                                                  pady=2)
-        frequency_text = self.frequency_to_string(task_details['frequency'])
-        tk.Label(time_info_frame, text=frequency_text, font=FONT, bg='#ecf0f1').grid(row=3, column=1, sticky="w",
-                                                                                     padx=5, pady=2)
+        frequency_combobox = ttk.Combobox(frequency_frame,
+                                          values=["单次任务", "每日任务", "每 N 日任务", "无限次数", "每月任务",
+                                                  "每年任务"], font=FONT, state='readonly')
+        frequency_combobox.grid(row=0, column=0, padx=5, pady=5)
 
-        # Basic Information
-        basic_info_frame = tk.LabelFrame(scrollable_frame, text="基本信息", font=TASK_FONT, bg='#ecf0f1', fg='#34495e')
-        basic_info_frame.pack(fill=tk.X, padx=10, pady=5, anchor="w")
+        n_days_entry = tk.Entry(frequency_frame, font=FONT, width=5)
+        n_days_entry.grid(row=0, column=1, padx=5, pady=5)
+        n_days_entry.grid_remove()
 
-        tk.Label(basic_info_frame, text="任务备注:", font=FONT, bg='#ecf0f1').grid(row=0, column=0, sticky="w", padx=5,
-                                                                                   pady=2)
-        notes_text = task_details.get('notes', '无')
-        notes_label = tk.Label(basic_info_frame, text=notes_text, font=FONT, bg='#ecf0f1', wraplength=500,
-                               justify="left")
-        notes_label.grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        # Set the correct frequency value
+        if task_details['frequency'] == 0:
+            frequency_combobox.set("单次任务")
+        elif task_details['frequency'] == 1:
+            frequency_combobox.set("每日任务")
+        elif task_details['frequency'] > 1:
+            frequency_combobox.set("每 N 日任务")
+            n_days_entry.grid()
+            n_days_entry.insert(0, task_details['frequency'])
+        elif task_details['frequency'] == -1:
+            frequency_combobox.set("无限次数")
+        elif task_details['frequency'] == -4:
+            frequency_combobox.set("每月任务")
+        elif task_details['frequency'] == -5:
+            frequency_combobox.set("每年任务")
 
-        # Add mouse wheel scrolling for the detail window
-        canvas.bind("<Enter>", lambda event: self._bind_detail_mousewheel(canvas))
-        canvas.bind("<Leave>", lambda event: self._unbind_detail_mousewheel())
+        def on_frequency_selected(event):
+            if frequency_combobox.get() == "每 N 日任务":
+                n_days_entry.grid()
+            else:
+                n_days_entry.grid_remove()
 
-        detail_window.bind("<Configure>", lambda event: self.on_detail_resize(event, scrollable_frame))
+        frequency_combobox.bind("<<ComboboxSelected>>", on_frequency_selected)
 
-    def _bind_detail_mousewheel(self, canvas):
-        canvas.bind_all("<MouseWheel>", lambda event: self._on_detail_mousewheel(event, canvas))
+        tk.Label(form_frame, text="商品:", font=FONT, bg='#ecf0f1').grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        item_combobox = ttk.Combobox(form_frame, values=list(self.items_cache.values()), font=FONT, state='readonly')
+        item_combobox.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
 
-    def _unbind_detail_mousewheel(self):
-        self.master.unbind_all("<MouseWheel>")
+        # Set the correct item value
+        item_id = task_details['itemId']
+        item_name = self.items_cache.get(item_id, "")
+        item_combobox.set(item_name)
 
-    def _on_detail_mousewheel(self, event, canvas):
-        if canvas.bbox("all")[3] > canvas.winfo_height():
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        tk.Label(form_frame, text="开始日期:", font=FONT, bg='#ecf0f1').grid(row=8, column=0, padx=5, pady=5,
+                                                                             sticky="w")
+        task_start_time_entry = tk.Entry(form_frame, font=FONT)
+        task_start_time_entry.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
+        task_start_time_entry.delete(0, "end")
+        task_start_time_entry.insert(0, self.convert_timestamp(task_details['startTime']))
 
-    def on_detail_resize(self, event, frame):
-        if event.widget == event.widget.master:
-            frame.update_idletasks()
-            new_width = event.width - 40
-            for child in frame.winfo_children():
-                if isinstance(child, tk.Label):
-                    child.config(wraplength=new_width)
+        tk.Label(form_frame, text="截止日期:", font=FONT, bg='#ecf0f1').grid(row=9, column=0, padx=5, pady=5,
+                                                                             sticky="w")
+        task_deadline_entry = tk.Entry(form_frame, font=FONT)
+        task_deadline_entry.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
+        task_deadline_entry.delete(0, "end")
+        task_deadline_entry.insert(0, self.convert_timestamp(task_details['deadline']))
+
+        tk.Label(form_frame, text="提醒日期:", font=FONT, bg='#ecf0f1').grid(row=10, column=0, padx=5, pady=5,
+                                                                             sticky="w")
+        task_remind_time_entry = tk.Entry(form_frame, font=FONT)
+        task_remind_time_entry.grid(row=10, column=1, padx=5, pady=5, sticky="ew")
+        task_remind_time_entry.delete(0, "end")
+        task_remind_time_entry.insert(0, self.convert_timestamp(task_details['remindTime']))
 
     def center_window(self, window):
         window.update_idletasks()
