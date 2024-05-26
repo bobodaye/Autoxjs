@@ -36,7 +36,7 @@ class TaskManagerApp:
         self.menu_var = tk.StringVar()
         self.menu_var.set("设置")  # 设置默认选中设置页面
 
-        self.task_button = tk.Radiobutton(self.sidebar_frame, text="主任务", variable=self.menu_var, value="任务",
+        self.task_button = tk.Radiobutton(self.sidebar_frame, text="主页", variable=self.menu_var, value="任务",
                                           font=FONT, bg='#2c3e50', fg='#ecf0f1', indicatoron=0,
                                           command=self.show_main_task_page, selectcolor="#34495e")
         self.task_button.pack(fill=tk.X, padx=10, pady=10)
@@ -271,16 +271,9 @@ class TaskManagerApp:
         title.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         title.bind("<Button-1>", lambda event, task_id=task['id']: self.show_task_details(task_id))
 
-        coin = tk.Label(content_frame, text=f"金币: {task['coin']} - {task['coin'] + task['coinVariable']}", anchor='w',
-                        font=FONT, bg='#ecf0f1')
-        coin.grid(row=1, column=0, sticky="w", padx=5)
-
-        exp = tk.Label(content_frame, text=f"经验: {task['exp']}", anchor='w', font=FONT, bg='#ecf0f1')
-        exp.grid(row=2, column=0, sticky="w", padx=5)
-
         deadline = tk.Label(content_frame, text=f"截止时间: {self.convert_timestamp(task['deadline'])}", anchor='w',
                             font=FONT, bg='#ecf0f1')
-        deadline.grid(row=3, column=0, sticky="w", padx=5)
+        deadline.grid(row=1, column=0, sticky="w", padx=5)
 
         print(f"Task '{task['name']}' displayed.")
 
