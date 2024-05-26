@@ -4,12 +4,13 @@ from tkcalendar import Calendar
 import requests
 import datetime
 import urllib.parse
+import os
 
-BASE_URL = "http://192.168.1.9:13276"
+BASE_URL = None
 FONT = ("Fira Sans", 12)
 TASK_FONT = ("SimHei", 14)
 TITLE_FONT = ("SimHei", 16)
-
+SETTINGS_FILE = "lifeup_settings.cfg"
 
 class TaskManagerApp:
     def __init__(self, master):
@@ -20,11 +21,64 @@ class TaskManagerApp:
 
         self.set_styles()  # Set styles for ttk components
 
-        self.tasks_cache = {}  # 缓存获取到的任务数据
-        self.skills_cache = self.fetch_skills()  # 缓存技能数据
-        self.items_cache = self.fetch_items(0)  # 缓存商品数据，目录ID为0
+        self.tasks_cache = {}
+        self.skills_cache = {}
+        self.items_cache = {}
 
-        self.top_frame = tk.Frame(self.master, bg='#2c3e50')
+        # 创建 PanedWindow
+        self.paned_window = tk.PanedWindow(self.master, orient=tk.HORIZONTAL)
+        self.paned_window.pack(fill=tk.BOTH, expand=True)
+
+        # 创建侧边菜单栏
+        self.sidebar_frame = tk.Frame(self.paned_window, bg='#2c3e50')
+        self.paned_window.add(self.sidebar_frame, width=120)
+
+        self.menu_var = tk.StringVar()
+        self.menu_var.set("设置")  # 设置默认选中设置页面
+
+        self.task_button = tk.Radiobutton(self.sidebar_frame, text="主任务", variable=self.menu_var, value="任务",
+                                          font=FONT, bg='#2c3e50', fg='#ecf0f1', indicatoron=0,
+                                          command=self.show_main_task_page, selectcolor="#34495e")
+        self.task_button.pack(fill=tk.X, padx=10, pady=10)
+
+        self.settings_button = tk.Radiobutton(self.sidebar_frame, text="设置", variable=self.menu_var, value="设置",
+                                              font=FONT, bg='#2c3e50', fg='#ecf0f1', indicatoron=0,
+                                              command=self.show_settings_page, selectcolor="#34495e")
+        self.settings_button.pack(fill=tk.X, padx=10, pady=10)
+
+        # 创建主内容区
+        self.content_frame = tk.Frame(self.paned_window)
+        self.paned_window.add(self.content_frame)
+
+        # 初始化页面
+        self.create_main_task_page()
+        self.create_settings_page()
+        self.show_settings_page()  # 首次运行时显示设置页面
+
+        # 读取设置文件
+        self.load_settings()
+
+    def set_styles(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure("TButton", font=FONT, padding=6, relief="flat",
+                        background="#3498db", foreground="#ecf0f1")
+        style.map("TButton",
+                  background=[("active", "#2980b9")])
+
+        style.configure("TLabel", font=FONT, background="#ecf0f1")
+
+        style.configure("TFrame", background="#ecf0f1")
+        style.configure("My.TFrame", background="#ecf0f1", relief="raised", borderwidth=1)
+
+        style.configure("TCombobox", fieldbackground="#ecf0f1", background="#ecf0f1", font=FONT)
+
+    def create_main_task_page(self):
+        self.main_task_frame = tk.Frame(self.content_frame, bg='#ecf0f1')
+        self.main_task_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.top_frame = tk.Frame(self.main_task_frame, bg='#2c3e50')
         self.top_frame.pack(side=tk.TOP, fill=tk.X)
 
         self.category_label = tk.Label(self.top_frame, text="选择分类：", font=FONT, bg='#2c3e50', fg='#ecf0f1')
@@ -43,7 +97,7 @@ class TaskManagerApp:
                                         bg='#3498db', fg='#ecf0f1', bd=0, padx=10, pady=5)
         self.refresh_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        self.task_frame = tk.Frame(self.master, bg='#ecf0f1')
+        self.task_frame = tk.Frame(self.main_task_frame, bg='#ecf0f1')
         self.task_frame.pack(fill=tk.BOTH, expand=True)
 
         self.canvas = tk.Canvas(self.task_frame, bg='#ecf0f1')
@@ -67,24 +121,58 @@ class TaskManagerApp:
         self.canvas.bind("<Enter>", self._bound_to_mousewheel)
         self.canvas.bind("<Leave>", self._unbound_to_mousewheel)
 
+    def create_settings_page(self):
+        self.settings_frame = tk.Frame(self.content_frame, bg='#ecf0f1')
+
+        # 优化布局
+        form_frame = tk.Frame(self.settings_frame, bg='#ecf0f1')
+        form_frame.pack(pady=20)
+
+        tk.Label(form_frame, text="IP 地址:", font=FONT, bg='#ecf0f1').grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        self.ip_entry = tk.Entry(form_frame, font=FONT)
+        self.ip_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        tk.Label(form_frame, text="端口:", font=FONT, bg='#ecf0f1').grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        self.port_entry = tk.Entry(form_frame, font=FONT)
+        self.port_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        save_button = tk.Button(form_frame, text="保存设置", font=FONT, bg='#3498db', fg='#ecf0f1', command=self.save_settings)
+        save_button.grid(row=2, columnspan=2, pady=10)
+
+    def show_main_task_page(self):
+        self.settings_frame.pack_forget()
+        self.main_task_frame.pack(fill=tk.BOTH, expand=True)
         self.load_categories()
-        self.load_tasks()  # Load all tasks initially
+        self.load_tasks()
+        self.skills_cache = self.fetch_skills()  # 缓存技能数据
+        self.items_cache = self.fetch_items(0)  # 缓存商品数据，目录ID为0
 
-    def set_styles(self):
-        style = ttk.Style()
-        style.theme_use("clam")
+    def show_settings_page(self):
+        self.main_task_frame.pack_forget()
+        self.settings_frame.pack(fill=tk.BOTH, expand=True)
 
-        style.configure("TButton", font=FONT, padding=6, relief="flat",
-                        background="#3498db", foreground="#ecf0f1")
-        style.map("TButton",
-                  background=[("active", "#2980b9")])
+    def save_settings(self):
+        ip = self.ip_entry.get().strip()
+        port = self.port_entry.get().strip()
+        if not ip or not port:
+            messagebox.showerror("错误", "IP 地址和端口不能为空")
+            return
+        global BASE_URL
+        BASE_URL = f"http://{ip}:{port}"
+        # 保存设置到文件
+        with open(SETTINGS_FILE, 'w') as f:
+            f.write(f"{ip}:{port}")
+        messagebox.showinfo("成功", "设置已保存")
 
-        style.configure("TLabel", font=FONT, background="#ecf0f1")
-
-        style.configure("TFrame", background="#ecf0f1")
-        style.configure("My.TFrame", background="#ecf0f1", relief="raised", borderwidth=1)
-
-        style.configure("TCombobox", fieldbackground="#ecf0f1", background="#ecf0f1", font=FONT)
+    def load_settings(self):
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                ip_port = f.read().strip()
+                ip, port = ip_port.split(":")
+                self.ip_entry.insert(0, ip)
+                self.port_entry.insert(0, port)
+                global BASE_URL
+                BASE_URL = f"http://{ip}:{port}"
 
     def _bound_to_mousewheel(self, event):
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
@@ -102,7 +190,10 @@ class TaskManagerApp:
             self.canvas.itemconfig(self.canvas_window, width=new_width)
 
     def load_categories(self):
-        # Fetch task categories from the API
+        if not self.is_url_set():
+            messagebox.showwarning("警告", "请先在设置中配置 IP 和端口")
+            return
+
         try:
             print("Fetching categories...")
             response = requests.get(f"{BASE_URL}/tasks_categories")
@@ -124,10 +215,16 @@ class TaskManagerApp:
         self.load_tasks(category_id)
 
     def refresh_tasks(self):
+        if not self.is_url_set():
+            messagebox.showwarning("警告", "请先在设置中配置 IP 和端口")
+            return
         self.load_tasks(self.categories.get(self.category_var.get()))
 
     def load_tasks(self, category_id=None):
-        # Clear the frame
+        if not self.is_url_set():
+            #messagebox.showwarning("警告", "请先在设置中配置 IP 和端口")
+            return
+
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
 
@@ -215,6 +312,10 @@ class TaskManagerApp:
             messagebox.showinfo("提示", "任务未完成")
 
     def fetch_skills(self):
+        if not self.is_url_set():
+            #messagebox.showwarning("警告", "请先在设置中配置 IP 和端口")
+            return {}
+
         try:
             print("Fetching skills...")
             response = requests.get(f"{BASE_URL}/skills")
@@ -231,6 +332,10 @@ class TaskManagerApp:
             return {}
 
     def fetch_items(self, category_id):
+        if not self.is_url_set():
+            #messagebox.showwarning("警告", "请先在设置中配置 IP 和端口")
+            return {}
+
         try:
             print(f"Fetching items for category ID {category_id}...")
             response = requests.get(f"{BASE_URL}/items/{category_id}")
@@ -409,6 +514,10 @@ class TaskManagerApp:
         window.geometry(f'{width}x{height}+{x}+{y}')
 
     def open_add_task_window(self):
+        if not self.is_url_set():
+            messagebox.showwarning("警告", "请先在设置中配置 IP 和端口")
+            return
+
         add_window = tk.Toplevel(self.master)
         add_window.title("添加任务")
         add_window.geometry("600x730")
@@ -476,6 +585,19 @@ class TaskManagerApp:
             skill_frame.columnconfigure(col, weight=1)
             col += 1
 
+        def update_skill_checkbuttons(*args):
+            selected_skills = sum(var.get() for var in skill_vars.values())
+            for skill_id, var in skill_vars.items():
+                if not var.get() and selected_skills >= 3:
+                    cb = skill_frame.grid_slaves(row=0, column=list(skill_vars.keys()).index(skill_id))[0]
+                    cb.config(state=tk.DISABLED)
+                else:
+                    cb = skill_frame.grid_slaves(row=0, column=list(skill_vars.keys()).index(skill_id))[0]
+                    cb.config(state=tk.NORMAL)
+
+        for var in skill_vars.values():
+            var.trace_add("write", update_skill_checkbuttons)
+
         tk.Label(form_frame, text="任务分类:", font=FONT, bg='#ecf0f1').grid(row=5, column=0, padx=5, pady=5,
                                                                              sticky="w")
         task_category_combobox = ttk.Combobox(form_frame, values=[name for name, id_ in self.categories.items() if
@@ -541,6 +663,34 @@ class TaskManagerApp:
         task_feelings_check = tk.Checkbutton(form_frame, variable=task_feelings_var, font=FONT, bg='#ecf0f1')
         task_feelings_check.grid(row=12, column=1, padx=5, pady=5, sticky="w")
 
+        def calculate_exp():
+            importance = int(importance_combobox.get().replace("LV", ""))
+            difficulty = int(difficulty_combobox.get().replace("LV", ""))
+            skill_count = sum(var.get() for var in skill_vars.values())
+
+            if skill_count == 0:
+                task_exp_spinbox.delete(0, "end")
+                task_exp_spinbox.insert(0, "0")
+                return
+
+            if skill_count == 1:
+                exp = importance * 65 + difficulty * 65
+            elif skill_count == 2:
+                exp = importance * 65 + difficulty * 65 - (difficulty * 30 if importance > difficulty else
+                                                           max(importance, difficulty) * 30)
+            elif skill_count == 3:
+                exp = importance * 65 + difficulty * 65 - (difficulty * 40 if importance > difficulty else
+                                                           max(importance, difficulty) * 40)
+
+            task_exp_spinbox.delete(0, "end")
+            task_exp_spinbox.insert(0, str(exp))
+
+        # 绑定事件
+        for var in skill_vars.values():
+            var.trace_add("write", lambda *args: calculate_exp())
+        importance_combobox.bind("<<ComboboxSelected>>", lambda event: calculate_exp())
+        difficulty_combobox.bind("<<ComboboxSelected>>", lambda event: calculate_exp())
+
         def add_task():
             skills_selected = [skill_id for skill_id, var in skill_vars.items() if var.get()]
             if len(skills_selected) > 3:
@@ -587,9 +737,6 @@ class TaskManagerApp:
             if task_data["exp"] == "":
                 messagebox.showerror("错误", "经验不能为空")
                 return
-            if len(skills_selected) == 0:
-                messagebox.showerror("错误", "技能不能为空")
-                return
             if task_data["item_amount"] == "":
                 messagebox.showerror("错误", "商品数量不能为空")
                 return
@@ -620,6 +767,20 @@ class TaskManagerApp:
         add_task_button = tk.Button(form_frame, text="添加任务", command=add_task, font=FONT, bg='#3498db',
                                     fg='#ecf0f1', bd=0, padx=10, pady=0)
         add_task_button.grid(row=13, column=1, padx=5, pady=0, sticky="e")
+
+
+    def is_url_set(self):
+        return bool(self.ip_entry.get() and self.port_entry.get())
+
+    def set_base_url(self):
+        global BASE_URL
+        ip = self.ip_entry.get().strip()
+        port = self.port_entry.get().strip()
+        if ip and port:
+            BASE_URL = f"http://{ip}:{port}"
+            self.load_tasks()
+        else:
+            messagebox.showwarning("警告", "IP 或端口为空")
 
 
 if __name__ == "__main__":
