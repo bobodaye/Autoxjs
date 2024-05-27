@@ -1,13 +1,6 @@
 //auto();
 
-// 初始化应用包名列表
-let appPackageNameList = [
-    'tv.danmaku.bili',   // b站
-    'com.xingin.xhs',    // 小红书
-    'com.sina.weibo',    // 微博
-    'com.zhihu.android', // 知乎
-    'com.ss.android.ugc.aweme' // 抖音
-];
+let appPackageNameList = [];
 
 const itemInfo = {
     151: { name: "自由券.10分钟", app: null },
@@ -25,7 +18,7 @@ let switchAppTime = 0;     // 切换APP后运行时长（单位：秒）
 
 const queryCoinString = "app.lifeup.query.coin";
 const queryItemString = "app.lifeup.query.item";
-const useItemString = "app.lifeup.item.use";
+//const useItemString = "app.lifeup.item.use";
 const useItemStatusString = "app.lifeup.item.use.status";
 const countDownStartString = "app.lifeup.item.countdown.start";
 const countDownStopString = "app.lifeup.item.countdown.stop";
@@ -106,7 +99,7 @@ var receiver = new android.content.BroadcastReceiver({
 var filter = new android.content.IntentFilter();
 filter.addAction(queryCoinString);
 filter.addAction(queryItemString);
-filter.addAction(useItemString);
+//filter.addAction(useItemString);
 filter.addAction(useItemStatusString);
 filter.addAction(countDownStartString);
 filter.addAction(countDownStopString);
