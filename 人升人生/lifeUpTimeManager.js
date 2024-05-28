@@ -8,13 +8,16 @@ const itemInfo = {
     781: { name: "微博", app: 'com.sina.weibo' },
     773: { name: "小红书", app: 'com.xingin.xhs' },
     772: { name: "b站", app: 'tv.danmaku.bili' },
-    771: { name: "知乎", app: 'com.zhihu.android' }
+    771: { name: "知乎", app: 'com.zhihu.android' },
+    788: { name: "腾讯视频", app: 'com.tencent.qqlive' },
 };
 
 let currentItemId = 0;     // 当前使用的商品ID
 let currentApp = null;     // 当前正在运行的APP
 let timerId = null;        // 倒计时定时器ID
 let switchAppTime = 0;     // 切换APP后运行时长（单位：秒）
+let keepAppTime = 0;       // 保持APP的允许时长（单位：秒）
+let receiveCutDownEvt = false;  //是否接收到倒计时事件
 
 const queryCoinString = "app.lifeup.query.coin";
 const queryItemString = "app.lifeup.query.item";
@@ -241,6 +244,7 @@ function handleUseItemStatus(data) {
 function handleCountDownStart(data) {
     console.log("倒计时开始: " + JSON.stringify(data));
     currentItemId = parseInt(data.item_id);
+    receiveCutDownEvt = true;
 }
 
 // 处理倒计时停止
@@ -285,6 +289,7 @@ function stopMonitoringApps() {
 // 处理APP打开
 function handleAppOpen(packageName) {
     if (currentApp !== packageName) {
+        keepAppTime = 0;
         switchAppTime++;
         console.log(`handleAppOpen: packageName = ${packageName}`);
         
@@ -301,6 +306,14 @@ function handleAppOpen(packageName) {
         }
     } else {
         switchAppTime = 0;
+
+        keepAppTime++;
+        if (keepAppTime >= 10) {
+            if (receiveCutDownEvt === false) {
+                console.log("APP运行超过10s，仍未接收到倒计时事件");
+                resetState();
+            }
+        }
     }
 }
 
@@ -345,6 +358,7 @@ function resetState() {
     console.log("重置状态");
     currentItemId = 0;
     currentApp = null;
+    receiveCutDownEvt = false;
 }
 
 // 初始化
@@ -354,6 +368,7 @@ function init() {
     addAppToList('com.sina.weibo');    // 微博
     addAppToList('com.zhihu.android'); // 知乎
     addAppToList('com.ss.android.ugc.aweme');    // 抖音
+    addAppToList('com.tencent.qqlive')  //腾讯视频
 
     startMonitoringApps();
 }
