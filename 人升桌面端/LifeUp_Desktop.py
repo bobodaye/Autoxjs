@@ -768,10 +768,11 @@ class TaskManagerApp:
 
             # 将技能转换成列表并单独处理
             skills_list = [("skills", skill) for skill in skills_selected]
-            encoded_task_data = urllib.parse.urlencode(task_data) + '&' + urllib.parse.urlencode(skills_list,
-                                                                                                 doseq=True)
-            encoded_url = urllib.parse.quote(f"lifeup://api/add_task?{encoded_task_data}")
-            url = f"{BASE_URL}/api/contentprovider?url={encoded_url}"
+            encoded_skills = urllib.parse.urlencode(skills_list, doseq=True)
+
+            # 拼接成最终的 URL
+            encoded_url = f"lifeup://api/add_task?" + '&'.join([f"{key}={value}" for key, value in task_data.items()]) + '&' + encoded_skills
+            url = f"{BASE_URL}/api/contentprovider?url={urllib.parse.quote(encoded_url)}"
 
             try:
                 print(f"Adding task with URL: {url}")
