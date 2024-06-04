@@ -202,6 +202,11 @@ function useLifeUpCountDown() {
             }
     
             btn_play.click();
+
+            let appPackageName = itemInfo[currentItemId].app;
+            if (appPackageName) {
+                launch(appPackageName);
+            }
             
             return;
         } while (0);
