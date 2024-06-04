@@ -3,20 +3,20 @@
 let appPackageNameList = [];
 
 const itemInfo = {
-    151: { name: "自由券.10分钟", app: null },
-    782: { name: "抖音", app: 'com.ss.android.ugc.aweme' },
-    781: { name: "微博", app: 'com.sina.weibo' },
-    773: { name: "小红书", app: 'com.xingin.xhs' },
-    772: { name: "b站", app: 'tv.danmaku.bili' },
-    771: { name: "知乎", app: 'com.zhihu.android' },
-    788: { name: "腾讯视频", app: 'com.tencent.qqlive' },
+    151: { name: "自由券.10分钟", app: null, time_left: 0 },
+    782: { name: "抖音", app: 'com.ss.android.ugc.aweme', time_left: 0 },
+    781: { name: "微博", app: 'com.sina.weibo', time_left: 0 },
+    773: { name: "小红书", app: 'com.xingin.xhs', time_left: 0 },
+    772: { name: "b站", app: 'tv.danmaku.bili', time_left: 0 },
+    771: { name: "知乎", app: 'com.zhihu.android', time_left: 0 },
+    788: { name: "腾讯视频", app: 'com.tencent.qqlive', time_left: 0 },
 };
 
 let currentItemId = 0;     // 当前使用的商品ID
 let currentApp = null;     // 当前正在运行的APP
 let timerId = null;        // 倒计时定时器ID
 let switchAppTime = 0;     // 切换APP后运行时长（单位：秒）
-let keepAppTime = 0;       // 保持APP的允许时长（单位：秒）
+let keepAppTime = 0;       // 保持APP的运行时长（单位：秒）
 let receiveCutDownEvt = false;  //是否接收到倒计时事件
 
 const queryCoinString = "app.lifeup.query.coin";
@@ -60,7 +60,6 @@ function toastMethod(str, type) {
     if (op === 0) {
         toast(str);
     } else if (op === 1) {
-
         callApi("lifeup://api/toast?text=" + encodeURIComponent(str) + "&type=" + type + "&isLong=true");
     }
 }
@@ -140,7 +139,7 @@ function handleQueryItem(data) {
     let ownNumber = data.own_number;
     console.log(`handleQueryItem: ownNumber = ${ownNumber}`);
     if (ownNumber > 0) {
-        confirmUseItem();
+        confirmUseItem(false);
     } else {
         if (currentItemId !== 151) {
             currentItemId = 151; // 尝试使用自由券
@@ -153,12 +152,71 @@ function handleQueryItem(data) {
         }
     }
 }
-function confirmUseItem() {
+
+function useLifeUpCountDown() {
+    threads.start(() => {
+        // 跳转到商店页面
+        callApi("lifeup://api/goto?page=main&sub_page=shop");
+
+        do {
+            // 等待并点击倒计时
+            let ll_countdown = id("ll_countdown").findOne(2000);
+            if (!ll_countdown) {
+                toastMethod("未找到倒计时按钮", toastType.ERROR_TYPE);
+                break;
+            }
+    
+            ll_countdown.click();
+            sleep(500);
+    
+            // 等待倒计时页面出现
+            let countDownPage = text("商品倒计时").findOne(1000);
+            if (!countDownPage) {
+                toastMethod("倒计时页面加载失败", toastType.ERROR_TYPE);
+                break;
+            }
+    
+            // 匹配currentID对应的倒计时，开始倒计时
+            let itemName = itemInfo[currentItemId].name;
+            let countDownItem = textContains(itemName).findOne(1000);
+            if (!countDownItem) {
+                toastMethod("未找到指定商品的倒计时", toastType.ERROR_TYPE);
+                break;
+            }
+    
+            let parent = countDownItem.parent();
+            if (!parent) {
+                toastMethod("无法获取倒计时元素的父级", toastType.ERROR_TYPE);
+                break;
+            }
+    
+            if (parent.childCount() < 3) {
+                toastMethod("倒计时界面元素异常", toastType.ERROR_TYPE);
+                break;
+            }
+    
+            let btn_play = parent.child(1);
+            if (!btn_play) {
+                toastMethod("未找到开始倒计时的按钮", toastType.ERROR_TYPE);
+                break;
+            }
+    
+            btn_play.click();
+            
+            return;
+        } while (0);
+    
+        //异常处理
+        setTimeout(() => { exitAppMethod(); resetState(); }, 500);
+    });
+}
+
+function confirmUseItem(isCountDownTimeLeft) {
     let countDown = 5000;
 
     let view = ui.inflate(
         <vertical padding="16dp" background="#FFFFFF">
-            <text textSize="22sp" textColor="#000000" gravity="left" textStyle="bold" text="确认使用商品"/>
+            <text id="title" textSize="22sp" textColor="#000000" gravity="left" textStyle="bold" text=""/>
             <text id="prompt" textSize="16sp" textColor="#666666" gravity="left" marginTop="20dp" text=""/>
             
             <vertical layout_height="40dp" />
@@ -171,11 +229,15 @@ function confirmUseItem() {
         null,
         false
     );
-        
+
     view.confirm.click(function () {
         countDownTimer.cancel();
         dialog.dismiss();
-        callApi("lifeup://api/use_item?id=" + currentItemId + "&use_times=1&broadcast=" + useItemStatusString);
+        if (isCountDownTimeLeft) {
+            useLifeUpCountDown();
+        } else {
+            callApi("lifeup://api/use_item?id=" + currentItemId + "&use_times=1&broadcast=" + useItemStatusString);
+        }
     });
 
     view.cancel.click(function () {
@@ -191,7 +253,11 @@ function confirmUseItem() {
         wrapInScrollView: false,
     });
 
-    ui.run(() => { view.prompt.setText("确定使用商品" + itemInfo[currentItemId].name + "吗？") })
+    ui.run(() => {
+        let words = isCountDownTimeLeft ? "倒计时" : "商品";
+        view.title.setText("确认使用" + words);
+        view.prompt.setText("确定使用" + words + itemInfo[currentItemId].name + "吗？") 
+    })
     
     dialog.setCanceledOnTouchOutside(false);
 
@@ -244,18 +310,23 @@ function handleUseItemStatus(data) {
 function handleCountDownStart(data) {
     console.log("倒计时开始: " + JSON.stringify(data));
     currentItemId = parseInt(data.item_id);
+    itemInfo[currentItemId].time_left = parseInt(data.time_left);
     receiveCutDownEvt = true;
 }
 
 // 处理倒计时停止
 function handleCountDownStop(data) {
     console.log("倒计时停止: " + JSON.stringify(data));
+    let item_id = parseInt(data.item_id);
+    itemInfo[item_id].time_left = parseInt(data.time_left);
     resetState();
 }
 
 // 处理倒计时完成
 function handleCountDownComplete(data) {
     console.log("倒计时完成: " + JSON.stringify(data));
+    let item_id = parseInt(data.item_id);
+    itemInfo[item_id].time_left = parseInt(data.time_left);
     resetState();
 }
 
@@ -297,7 +368,23 @@ function handleAppOpen(packageName) {
             currentApp = packageName;
 
             if (currentItemId === 0) {
-                handleAppOpenWithoutItem(packageName);
+                for (let itemId in itemInfo) {
+                    if (itemInfo[itemId].app === currentApp) {
+                        if (itemInfo[itemId].time_left > 0) {
+                            currentItemId = itemId;
+                        } else if (itemInfo[151].time_left > 0) {
+                            currentItemId = 151;
+                        }
+
+                        break;
+                    }
+                }
+                
+                if (currentItemId !== 0) {
+                    confirmUseItem(true);
+                } else {
+                    handleAppOpenWithoutItem(packageName);
+                }
             } else if (currentItemId !== 151 && packageName !== itemInfo[currentItemId].app) {
                 toastMethod("商品指定APP了，快切换APP吧", toastType.WARNING_TYPE);
                 console.log("未授权的应用，返回桌面");
@@ -306,7 +393,6 @@ function handleAppOpen(packageName) {
         }
     } else {
         switchAppTime = 0;
-
         keepAppTime++;
         if (keepAppTime >= 10) {
             if (receiveCutDownEvt === false) {
@@ -359,6 +445,7 @@ function resetState() {
     currentItemId = 0;
     currentApp = null;
     receiveCutDownEvt = false;
+    switchAppTime = 0;
 }
 
 // 初始化
