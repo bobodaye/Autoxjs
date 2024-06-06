@@ -203,9 +203,8 @@ function useLifeUpCountDown() {
     
             btn_play.click();
 
-            let appPackageName = itemInfo[currentItemId].app;
-            if (appPackageName) {
-                launch(appPackageName);
+            if (currentApp) {
+                launch(currentApp);
             }
             
             return;
