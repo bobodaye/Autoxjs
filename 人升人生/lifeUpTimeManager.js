@@ -263,6 +263,7 @@ function confirmUseItem(isCountDownTimeLeft) {
         view.prompt.setText("确定使用" + words + itemInfo[currentItemId].name + "吗？") 
     })
     
+    dialog.setCancelable(false);
     dialog.setCanceledOnTouchOutside(false);
 
     let countDownTimer = JavaAdapter(android.os.CountDownTimer, {
