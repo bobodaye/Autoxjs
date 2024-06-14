@@ -2,8 +2,12 @@
 
 let appPackageNameList = [];
 
+const FREE_COUPON_ID = 151;
+const REST_COUPON_ID = 811;
+
 const itemInfo = {
     151: { name: "自由券.10分钟", app: null, time_left: 0 },
+    811: { name: "休息券.10分钟", app: null, time_left: 0 },
     782: { name: "抖音", app: 'com.ss.android.ugc.aweme', time_left: 0 },
     781: { name: "微博", app: 'com.sina.weibo', time_left: 0 },
     773: { name: "小红书", app: 'com.xingin.xhs', time_left: 0 },
@@ -141,11 +145,21 @@ function handleQueryItem(data) {
     if (ownNumber > 0) {
         confirmUseItem(false);
     } else {
-        if (currentItemId !== 151) {
-            currentItemId = 151; // 尝试使用自由券
+        if (currentItemId === REST_COUPON_ID) { // 休息券不足时查询APP专属商品
+            for (let itemId in itemInfo) {
+                if (itemInfo[itemId].app === currentApp) {
+                    currentItemId = parseInt(itemId);
+                    console.log(`尝试使用APP专属券: itemId = ${currentItemId}`);
+                    callApi("lifeup://api/query?key=item&item_id=" + currentItemId + "&broadcast=" + queryItemString);
+                    return;
+                }
+            }
+            currentItemId = FREE_COUPON_ID; // 如果没有APP专属商品，查询自由券
+        } else if (currentItemId !== FREE_COUPON_ID) { // 查询自由券
+            currentItemId = FREE_COUPON_ID; 
             console.log("尝试使用自由券");
             callApi("lifeup://api/query?key=item&item_id=" + currentItemId + "&broadcast=" + queryItemString);
-        } else {
+        } else { // 所有商品都不足
             toastMethod("商品存货不足啦，继续完成任务吧！", toastType.WARNING_TYPE);
             console.log("商品数量不足，无法使用商品");
             setTimeout(() => { exitAppMethod(); resetState(); }, 500);
@@ -375,10 +389,12 @@ function handleAppOpen(packageName) {
             if (currentItemId === 0) {
                 for (let itemId in itemInfo) {
                     if (itemInfo[itemId].app === currentApp) {
-                        if (itemInfo[itemId].time_left > 0) {
+                        if (itemInfo[REST_COUPON_ID].time_left > 0) {
+                            currentItemId = REST_COUPON_ID;
+                        } else if (itemInfo[itemId].time_left > 0) {
                             currentItemId = itemId;
-                        } else if (itemInfo[151].time_left > 0) {
-                            currentItemId = 151;
+                        } else if (itemInfo[FREE_COUPON_ID].time_left > 0) {
+                            currentItemId = FREE_COUPON_ID;
                         }
 
                         break;
@@ -390,7 +406,9 @@ function handleAppOpen(packageName) {
                 } else {
                     handleAppOpenWithoutItem(packageName);
                 }
-            } else if (currentItemId !== 151 && packageName !== itemInfo[currentItemId].app) {
+            } else if (currentItemId !== FREE_COUPON_ID && 
+                       currentItemId !== REST_COUPON_ID && 
+                       packageName !== itemInfo[currentItemId].app) {
                 toastMethod("商品指定APP了，快切换APP吧", toastType.WARNING_TYPE);
                 console.log("未授权的应用，返回桌面");
                 setTimeout(() => { exitAppMethod(); currentApp = null; }, 500);
@@ -411,17 +429,8 @@ function handleAppOpen(packageName) {
 // 在没有使用商品的情况下处理APP打开
 function handleAppOpenWithoutItem(packageName) {
     console.log(`handleAppOpenWithoutItem: packageName = ${packageName}`);
-    for (let itemId in itemInfo) {
-        if (itemInfo[itemId].app === packageName) {
-            currentItemId = parseInt(itemId);
-            console.log(`尝试使用指定应用券: itemId = ${currentItemId}`);
-            callApi("lifeup://api/query?key=coin&broadcast=" + queryCoinString);
-            return;
-        }
-    }
-    // 如果没有找到对应的APP，则使用自由券
-    currentItemId = 151;
-    console.log("使用自由券");
+    currentItemId = REST_COUPON_ID; // 尝试使用休息券
+    console.log("使用休息券");
     callApi("lifeup://api/query?key=coin&broadcast=" + queryCoinString);
 }
 
