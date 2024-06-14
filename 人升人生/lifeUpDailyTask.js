@@ -9,9 +9,16 @@ const itemInfo = [
     { name: "腾讯视频兑换券" },
 ];
 
-function isTodayHoliday() {
+function getFormattedDate(date) {
+    let year = date.getFullYear();
+    let month = (date.getMonth() + 1).toString().padStart(2, '0'); // 月份从0开始，所以需要加1
+    let day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function isHoliday(date) {
     // 使用中国节假日API
-    const apiUrl = 'https://timor.tech/api/holiday/info';
+    const apiUrl = 'https://timor.tech/api/holiday/info/' + date;
 
     try {
         let res = http.get(apiUrl, {
@@ -29,10 +36,10 @@ function isTodayHoliday() {
 
         console.log(data);
 
-        if (json && json.holiday && json.holiday.type && json.holiday.type.type === 2) {
-            return true; // 今天是法定节假日
+        if (json && json.type && (json.type.type === 1 || json.type.type === 2)) {
+            return true; // 该日期是休息日
         } else {
-            return false; // 今天不是法定节假日
+            return false; // 该日期不是休息日
         }
     } catch (error) {
         console.error('请求过程中出现错误: ' + error);
@@ -66,7 +73,10 @@ itemInfo.forEach(item => {
     resetItem(item.name);
 });
 
-if (isTodayHoliday()) {
+let currentDate = new Date();
+let formattedDate = getFormattedDate(currentDate);
+
+if (isHoliday(formattedDate)) {
     addItem("休息券.10分钟", 12);
     addItem("节假日游戏券", 3);
 } else {
