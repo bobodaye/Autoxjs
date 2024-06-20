@@ -436,10 +436,11 @@ function handleAppOpenWithoutItem(packageName) {
 
 // 检查应用是否在运行
 function isAppOpen(packageName) {
-    let isOpen = currentPackage() === packageName;
+    let isOpen = (currentPackage() === packageName) || (currentActivity().includes(packageName));
     if (isOpen && currentApp !== packageName) {
         console.log(`isAppOpen: packageName = ${packageName}, isOpen = ${isOpen}`);
     }
+
     return isOpen;
 }
 
