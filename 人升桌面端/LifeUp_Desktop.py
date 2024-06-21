@@ -506,7 +506,7 @@ class TaskManagerApp:
 
         # Set the correct item value
         item_id = task_details['itemId']
-        item_name = self.items_cache.get(item_id, "")
+        item_name = self.items_cache.get(item_id, "未设置")
         item_combobox.set(item_name)
 
         tk.Label(form_frame, text="开始日期:", font=FONT, bg='#ecf0f1').grid(row=8, column=0, padx=5, pady=5,
@@ -654,20 +654,26 @@ class TaskManagerApp:
 
         tk.Label(form_frame, text="重要程度:", font=FONT, bg='#ecf0f1').grid(row=7, column=0, padx=5, pady=5,
                                                                              sticky="w")
-        importance_combobox = ttk.Combobox(form_frame, values=["LV1", "LV2", "LV3", "LV4"], font=FONT, state='readonly')
+        importance_combobox = ttk.Combobox(form_frame, values=["LV1: 这件事可有可无",
+                                                               "LV2: 这件事值得上一点心",
+                                                               "LV3: 这件事需要引起你的重视",
+                                                               "LV4: 现在，立刻，放下一切事情，优先完成这件事"], font=FONT, state='readonly')
         importance_combobox.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
         importance_combobox.current(0)
 
         tk.Label(form_frame, text="困难程度:", font=FONT, bg='#ecf0f1').grid(row=8, column=0, padx=5, pady=5,
                                                                              sticky="w")
-        difficulty_combobox = ttk.Combobox(form_frame, values=["LV1", "LV2", "LV3", "LV4"], font=FONT, state='readonly')
+        difficulty_combobox = ttk.Combobox(form_frame, values=["LV1: 没有任何难度",
+                                                               "LV2: 有一点点难度",
+                                                               "LV3: 令人感到棘手",
+                                                               "LV4: 几乎不可能完成"], font=FONT, state='readonly')
         difficulty_combobox.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
         difficulty_combobox.current(0)
 
         tk.Label(form_frame, text="商品:", font=FONT, bg='#ecf0f1').grid(row=9, column=0, padx=5, pady=5, sticky="w")
         item_combobox = ttk.Combobox(form_frame, values=list(self.items_cache.values()), font=FONT, state='readonly')
         item_combobox.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
-        item_combobox.current(1)
+        #item_combobox.current(1)
 
         tk.Label(form_frame, text="商品数量:", font=FONT, bg='#ecf0f1').grid(row=10, column=0, padx=5, pady=5,
                                                                              sticky="w")
@@ -689,8 +695,8 @@ class TaskManagerApp:
         task_feelings_check.grid(row=12, column=1, padx=5, pady=5, sticky="w")
 
         def calculate_exp():
-            importance = int(importance_combobox.get().replace("LV", ""))
-            difficulty = int(difficulty_combobox.get().replace("LV", ""))
+            importance = int(importance_combobox.current() + 1)
+            difficulty = int(difficulty_combobox.current() + 1)
             skill_count = sum(var.get() for var in skill_vars.values())
 
             if skill_count == 0:
@@ -740,8 +746,8 @@ class TaskManagerApp:
                                                                                                    "每月任务": -4,
                                                                                                    "每年任务": -5}.get(
                     frequency_combobox.get(), 0),
-                "importance": importance_combobox.get().replace("LV", ""),
-                "difficulty": difficulty_combobox.get().replace("LV", ""),
+                "importance": int(importance_combobox.current() + 1),
+                "difficulty": int(difficulty_combobox.current() + 1),
                 "item_id": list(self.items_cache.keys())[
                     list(self.items_cache.values()).index(item_combobox.get())] if item_combobox.get() else "",
                 "item_amount": item_amount_spinbox.get().strip(),
