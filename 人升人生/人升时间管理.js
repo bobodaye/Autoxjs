@@ -28,6 +28,13 @@ const countDownStartString = "app.lifeup.item.countdown.start";
 const countDownStopString = "app.lifeup.item.countdown.stop";
 const countDownCompleteString = "app.lifeup.item.countdown.complete";
 
+for (let engine of engines.all()) {
+    if (engine !== engines.myEngine()) {
+        console.log("forceStop " + engine);
+        engine.forceStop();
+    }
+}
+
 function init_iteminfo()
 {
     for (let itemId in itemInfo) {
@@ -206,7 +213,7 @@ function init_rish()
 function rish_shell(cmd) {
     let exec_cmd = "sh rish -c " + "\"" + cmd + "\"";
     rish_sh.exec("cd " + rish_dir);
-    console.log(exec_cmd);
+    console.log(cmd);
     rish_sh.exec(exec_cmd);
 }
 
