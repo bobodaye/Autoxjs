@@ -565,7 +565,20 @@ function confirmUseItem(isCountDownTimeLeft) {
     ui.run(() => {
         let words = isCountDownTimeLeft ? "倒计时" : "商品";
         view.title.setText(`确认使用${words}`);
-        let item = isCountDownTimeLeft ? findObjectById(itemTimeLeftInfoList, currentItemId) : findObjectById(itemInfo, currentItemId);
+        let item = null;
+
+        if (isCountDownTimeLeft) {
+            item = findObjectById(itemTimeLeftInfoList, currentItemId)
+        } else {
+            item = itemInfo.find(obj => { 
+                if (!obj.app) {
+                    return obj.id === currentItemId;
+                } else {
+                    return (obj.id === currentItemId) && (obj.app === currentApp);
+                }
+            });
+        }
+
         console.log(JSON.stringify(item));
         view.prompt.setText(`确定使用${words}${item.name}吗？`);
     })
@@ -800,9 +813,14 @@ function handleAppOpen(packageName) {
                 }
             } else if (currentItemId !== FREE_COUPON_ID && 
                        currentItemId !== REST_COUPON_ID) {
-                let item = findObjectById(itemInfo, currentItemId);
-                if (packageName !== item.app) {
-                    toastMethod(`商品指定${item.name}APP了，快切换到${item.name}吧`, toastType.WARNING_TYPE);
+                let filteredObjects = itemInfo.filter(obj => obj.id === currentItemId);
+                let appExists = filteredObjects.some(obj => obj.app === packageName);
+
+                if (!appExists) {
+                    const namesArray = filteredObjects.map(obj => obj.name);
+                    let nameString = namesArray.join(', ');
+                    
+                    toastMethod(`商品指定${nameString}了，快切换到${nameString}吧`, toastType.WARNING_TYPE);
                     console.log("未授权的应用，返回桌面");
                     setTimeout(() => { exitAppMethod(); currentApp = null; }, 500);
                 }
