@@ -1,24 +1,29 @@
 let appPackageNameList = [];
+let itemTimeLeftInfoList = [];
 
-const itemInfo = {
-    151: { name: "自由券" },
-    811: { name: "休息券" },
-    782: { name: "抖音" },
-    781: { name: "微博" },
-    773: { name: "小红书" },
-    772: { name: "哔哩哔哩" },
-    771: { name: "知乎" },
-    788: { name: "腾讯视频" },
-};
+/* 
+说明：人升APP中必须创建自由券和休息券
+*/
+const itemInfo = [
+    { 人升商品ID: 151, 商品名称: "自由券" },
+    { 人升商品ID: 811, 商品名称: "休息券" },
+    { 人升商品ID: 782, APP名称: "抖音" },
+    { 人升商品ID: 781, APP名称: "微博" },
+    { 人升商品ID: 773, APP名称: "小红书" },
+    { 人升商品ID: 772, APP名称: "哔哩哔哩" },
+    { 人升商品ID: 771, APP名称: "知乎" },
+    { 人升商品ID: 788, APP名称: "腾讯视频" },
+];
 
 let currentItemId = 0;     // 当前使用的商品ID
 let currentApp = null;     // 当前正在运行的APP
-let timerId = null;        // 倒计时定时器ID
+let timerId = null;        // 监听APP运行定时器ID
 let switchAppTime = 0;     // 切换APP后运行时长（单位：秒）
 let keepAppTime = 0;       // 保持APP的运行时长（单位：秒）
 let receiveCutDownEvt = false;  //是否接收到倒计时事件
 let FREE_COUPON_ID = 0;     //自由券ID
 let REST_COUPON_ID = 0;     //休息券ID
+let lifeUpStorage = null;
 
 const queryCoinString = "app.lifeup.query.coin";
 const queryItemString = "app.lifeup.query.item";
@@ -35,28 +40,104 @@ for (let engine of engines.all()) {
     }
 }
 
+function init_storage()
+{
+    lifeUpStorage = storages.create("lifeUpStorage");
+
+    itemTimeLeftInfoList = lifeUpStorage.get("itemTimeLeftInfo", []);
+    if (itemTimeLeftInfoList.length > 0) {
+        itemTimeLeftInfoList = itemTimeLeftInfoList.filter(itemTimeLeftInfo => {
+            let existsInItemInfo = false;
+    
+            for (let j = 0; j < itemInfo.length; j++) {
+                if (itemTimeLeftInfo.id === itemInfo[j].id) {
+                    existsInItemInfo = true;
+                    break;
+                }
+            }
+    
+            if (!existsInItemInfo) {
+                console.log(`倒计时 ${itemTimeLeftInfo.name}不存在，id=${itemTimeLeftInfo.id}，从数据集中删除`);
+            }
+    
+            return existsInItemInfo;
+        });
+
+        console.log(`更新倒计时信息:${JSON.stringify(itemTimeLeftInfoList)}`);
+
+        lifeUpStorage.put("itemTimeLeftInfo", itemTimeLeftInfoList);
+    }
+}
+
+/**
+ * 根据ID查找数组中的对象
+ * @param {Array} arr - 包含对象的数组
+ * @param {number|string} id - 要查找的对象ID
+ * @returns {Object|null} - 查找到的对象或null（如果未找到）
+ */
+function findObjectById(arr, id)
+{
+    return arr.find(obj => obj.id === id) || null;
+}
+
 function init_iteminfo()
 {
-    for (let itemId in itemInfo) {
-        if (itemInfo[itemId].name === "自由券") {
-            FREE_COUPON_ID = itemId;
-            itemInfo[itemId].app = null;
-        } else if (itemInfo[itemId].name === "休息券") {
-            REST_COUPON_ID = itemId;
-            itemInfo[itemId].app = null;
-        } else {
-            itemInfo[itemId].app = getPackageName(itemInfo[itemId].name);
+    for (let item of itemInfo) {
+        if (item.商品名称 === "自由券") {
+            FREE_COUPON_ID = parseInt(item.人升商品ID);
+            item.app = null;
+            item.name = item.商品名称;
+        } else if (item.商品名称 === "休息券") {
+            REST_COUPON_ID = parseInt(item.人升商品ID);
+            item.app = null;
+            item.name = item.商品名称;
+        } else if (item.APP名称 !== undefined) {
+            item.app = getPackageName(item.APP名称);
+            if (null === item.app) {
+                toastLog(`APP '${item.APP名称}' 不存在，请检查`)
+            }
+            item.name = item.APP名称;
         }
 
-        itemInfo[itemId].time_left = 0;
+        item.id = parseInt(item.人升商品ID);
     }
+
+    console.log("自由券ID = " + FREE_COUPON_ID);
+    console.log("休息券ID = " + REST_COUPON_ID);
+    console.log(JSON.stringify(itemInfo));
+
+    init_storage();
+}
+
+function updateItemTimeLeft(itemID, itemName, itemTimeLeft)
+{
+    let _itemID = parseInt(itemID);
+    let _itemName = String(itemName);
+    let _itemTimeLeft = parseInt(itemTimeLeft);
+
+    for (let item of itemTimeLeftInfoList) {
+        if (_itemID === item.id) {
+            console.log(`更新${_itemName}剩余时间为${_itemTimeLeft}`);
+            item.name = _itemName;
+            item.time_left = _itemTimeLeft;
+
+            lifeUpStorage.put("itemTimeLeftInfo", itemTimeLeftInfoList);
+            return;
+        }
+    }
+
+    console.log(`添加${_itemName}剩余时间为${_itemTimeLeft}秒`);
+    itemTimeLeftInfoList.push({id: _itemID, name: _itemName, time_left: _itemTimeLeft});
+    lifeUpStorage.put("itemTimeLeftInfo", itemTimeLeftInfoList);
 }
 
 const rish_dir = "/data/data/org.autojs.autoxjs.v6/files/";
 const open_autojs_accessibility = "settings put secure enabled_accessibility_services org.autojs.autoxjs.v6/com.stardust.autojs.core.accessibility.AccessibilityService";
+const foreground_app = "dumpsys activity activities | grep \"windows=\\[W\" | sed -n '1p'";
 let rish_sh = new Shell();
+let detect_rish_sh = new Shell();
 
-function init_rish()
+function init_rish_shell()
 {
     const rish_base64 = "IyEvc3lzdGVtL2Jpbi9zaApCQVNFRElSPSQoZGlybmFtZSAiJDAiKQpERVg9IiRCQVNFRElSIi9yaXNoX3NoaXp1a3UuZGV4CgppZiBbICEgLWYgIiRERVgiIF07IHRoZW4KICBlY2hvICJDYW5ub3QgZmluZCAkREVYLCBwbGVhc2UgY2hlY2sgdGhlIHR1dG9yaWFsIGluIFNoaXp1a3UgYXBwIgogIGV4aXQgMQpmaQoKaWYgWyAkKGdldHByb3Agcm8uYnVpbGQudmVyc2lvbi5zZGspIC1nZSAzNCBdOyB0aGVuCiAgaWYgWyAtdyAkREVYIF07IHRoZW4KICAgIGVjaG8gIk9uIEFuZHJvaWQgMTQrLCBhcHBfcHJvY2VzcyBjYW5ub3QgbG9hZCB3cml0YWJsZSBkZXguIgogICAgZWNobyAiQXR0ZW1wdGluZyB0byByZW1vdmUgdGhlIHdyaXRlIHBlcm1pc3Npb24uLi4iCiAgICBjaG1vZCA0MDAgJERFWAogIGZpCiAgaWYgWyAtdyAkREVYIF07IHRoZW4KICAgIGVjaG8gIkNhbm5vdCByZW1vdmUgdGhlIHdyaXRlIHBlcm1pc3Npb24gb2YgJERFWC4iCiAgICBlY2hvICJZb3UgY2FuIGNvcHkgdG8gZmlsZSB0byB0ZXJtaW5hbCBhcHAncyBwcml2YXRlIGRpcmVjdG9yeSAoL2RhdGEvZGF0YS88cGFja2FnZT4sIHNvIHRoYXQgcmVtb3ZlIHdyaXRlIHBlcm1pc3Npb24gaXMgcG9zc2libGUiCiAgICBleGl0IDEKICBmaQpmaQoKIyBSZXBsYWNlICJQS0ciIHdpdGggdGhlIGFwcGxpY2F0aW9uIGlkIG9mIHlvdXIgdGVybWluYWwgYXBwClsgLXogIiRSSVNIX0FQUExJQ0FUSU9OX0lEIiBdICYmIGV4cG9ydCBSSVNIX0FQUExJQ0FUSU9OX0lEPSJvcmcuYXV0b2pzLmF1dG94anMudjYiCi9zeXN0ZW0vYmluL2FwcF9wcm9jZXNzIC1EamF2YS5jbGFzcy5wYXRoPSIkREVYIiAvc3lzdGVtL2JpbiAtLW5pY2UtbmFtZT1yaXNoIHJpa2thLnNoaXp1a3Uuc2hlbGwuU2hpenVrdVNoZWxsTG9hZGVyICIkQCIK";
     const rish_shizuku_base64 = "ZGV4CjAzNQAa/1bOcipPWeWPWgcXCpDLf/u2aEF1pm6sGgAAcAAAAHhWNBIAAAAAAAAAAOgZAACO" + 
@@ -208,13 +289,30 @@ function init_rish()
 
         console.log("create rish and rish_shizuku.dex success");
     }
+
+    rish_sh.exec("cd " + rish_dir);
+    rish_sh.exec("sh rish");
+    detect_rish_sh.exec("cd " + rish_dir);
+    detect_rish_sh.exec("sh rish");
+
+    detect_rish_sh.setCallback({
+        onOutput: function(outputStr) {
+            appPackageNameList.forEach(packageName => {
+                if (isAppOpen(outputStr, packageName)) {
+                    handleAppOpen(packageName);
+                }
+            });
+        }
+    })
 }
 
 function rish_shell(cmd) {
-    let exec_cmd = "sh rish -c " + "\"" + cmd + "\"";
-    rish_sh.exec("cd " + rish_dir);
     console.log(cmd);
-    rish_sh.exec(exec_cmd);
+    rish_sh.exec(cmd);
+}
+
+function detect_rish_shell(cmd) {
+    detect_rish_sh.exec(cmd);
 }
 
 function exitAppMethod() {
@@ -224,7 +322,7 @@ function exitAppMethod() {
         home();
     } else if (op === 1) {
         if (currentApp) {
-            rish_shell("am force-stop " + currentApp);
+            rish_shell(`am force-stop ${currentApp}`);
         }
     }
 }
@@ -252,7 +350,7 @@ function toastMethod(str, type) {
     if (op === 0) {
         toast(str);
     } else if (op === 1) {
-        callApi("lifeup://api/toast?text=" + encodeURIComponent(str) + "&type=" + type + "&isLong=true");
+        callApi(`lifeup://api/toast?text=${encodeURIComponent(str)}&type=${type}&isLong=true`);
     }
 }
 
@@ -309,7 +407,7 @@ function callApi(str) {
         flags: ["activity_new_task"]
     });
 
-    console.log("Starting activity with intent: " + intent.toUri(0));
+    console.log(`Starting activity with intent: ${decodeURIComponent(intent.toUri(0))}`);
     context.startActivity(intent);
 }
 
@@ -318,7 +416,7 @@ function handleQueryCoin(data) {
     let coinValue = data.value;
     console.log(`handleQueryCoin: coinValue = ${coinValue}`);
     if (coinValue > 0) {
-        callApi("lifeup://api/query?key=item&item_id=" + currentItemId + "&broadcast=" + queryItemString);
+        callApi(`lifeup://api/query?key=item&item_id=${currentItemId}&broadcast=${queryItemString}`);
     } else {
         toastMethod("金币不够啦，继续赚取金币吧！", toastType.WARNING_TYPE);
         console.log("金币不足，无法使用商品");
@@ -334,11 +432,11 @@ function handleQueryItem(data) {
         confirmUseItem(false);
     } else {
         if (currentItemId === REST_COUPON_ID) { // 休息券不足时查询APP专属商品
-            for (let itemId in itemInfo) {
-                if (itemInfo[itemId].app === currentApp) {
-                    currentItemId = parseInt(itemId);
+            for (let item of itemInfo) {
+                if (item.app === currentApp) {
+                    currentItemId = parseInt(item.id);
                     console.log(`尝试使用APP专属券: itemId = ${currentItemId}`);
-                    callApi("lifeup://api/query?key=item&item_id=" + currentItemId + "&broadcast=" + queryItemString);
+                    callApi(`lifeup://api/query?key=item&item_id=${currentItemId}&broadcast=${queryItemString}`);
                     return;
                 }
             }
@@ -346,7 +444,7 @@ function handleQueryItem(data) {
         } else if (currentItemId !== FREE_COUPON_ID) { // 查询自由券
             currentItemId = FREE_COUPON_ID; 
             console.log("尝试使用自由券");
-            callApi("lifeup://api/query?key=item&item_id=" + currentItemId + "&broadcast=" + queryItemString);
+            callApi(`lifeup://api/query?key=item&item_id=${currentItemId}&broadcast=${queryItemString}`);
         } else { // 所有商品都不足
             toastMethod("商品存货不足啦，继续完成任务吧！", toastType.WARNING_TYPE);
             console.log("商品数量不足，无法使用商品");
@@ -379,8 +477,13 @@ function useLifeUpCountDown() {
             }
     
             // 匹配currentID对应的倒计时，开始倒计时
-            let itemName = itemInfo[currentItemId].name;
-            let countDownItem = textContains(itemName).findOne(1000);
+            let countDownItem = null;
+
+            let item = findObjectById(itemTimeLeftInfoList, currentItemId)
+            if (item) {
+                countDownItem = textContains(item.name).findOne(1000);
+            }
+            
             if (!countDownItem) {
                 toastMethod("未找到指定商品的倒计时", toastType.ERROR_TYPE);
                 break;
@@ -442,7 +545,7 @@ function confirmUseItem(isCountDownTimeLeft) {
         if (isCountDownTimeLeft) {
             useLifeUpCountDown();
         } else {
-            callApi("lifeup://api/use_item?id=" + currentItemId + "&use_times=1&broadcast=" + useItemStatusString);
+            callApi(`lifeup://api/use_item?id=${currentItemId}&use_times=1&broadcast=${useItemStatusString}`);
         }
     });
 
@@ -461,8 +564,10 @@ function confirmUseItem(isCountDownTimeLeft) {
 
     ui.run(() => {
         let words = isCountDownTimeLeft ? "倒计时" : "商品";
-        view.title.setText("确认使用" + words);
-        view.prompt.setText("确定使用" + words + itemInfo[currentItemId].name + "吗？") 
+        view.title.setText(`确认使用${words}`);
+        let item = isCountDownTimeLeft ? findObjectById(itemTimeLeftInfoList, currentItemId) : findObjectById(itemInfo, currentItemId);
+        console.log(JSON.stringify(item));
+        view.prompt.setText(`确定使用${words}${item.name}吗？`);
     })
     
     dialog.setCancelable(false);
@@ -517,7 +622,7 @@ function handleUseItemStatus(data) {
 function handleCountDownStart(data) {
     console.log("倒计时开始: " + JSON.stringify(data));
     currentItemId = parseInt(data.item_id);
-    itemInfo[currentItemId].time_left = parseInt(data.time_left);
+    updateItemTimeLeft(data.item_id, data.name, data.time_left);
     receiveCutDownEvt = true;
 }
 
@@ -525,7 +630,7 @@ function handleCountDownStart(data) {
 function handleCountDownStop(data) {
     console.log("倒计时停止: " + JSON.stringify(data));
     let item_id = parseInt(data.item_id);
-    itemInfo[item_id].time_left = parseInt(data.time_left);
+    updateItemTimeLeft(data.item_id, data.name, data.time_left);
     resetState();
 }
 
@@ -533,7 +638,7 @@ function handleCountDownStop(data) {
 function handleCountDownComplete(data) {
     console.log("倒计时完成: " + JSON.stringify(data));
     let item_id = parseInt(data.item_id);
-    itemInfo[item_id].time_left = parseInt(data.time_left);
+    updateItemTimeLeft(data.item_id, data.name, data.time_left);
     resetState();
 }
 
@@ -577,12 +682,12 @@ function isHoliday(date) {
 
 function resetItem(itemName) {
     console.log("重置\"" + itemName + "\"");
-    callApi("lifeup://api/item?name=" + itemName + "&own_number=0&own_number_type=absolute");
+    callApi(`lifeup://api/item?name=${itemName}&own_number=0&own_number_type=absolute`);
 }
 
 function addItem(itemName, number) {
     console.log("赠送\"" + itemName + "\" * " + number);
-    callApi("lifeup://api/item?name=" + itemName + "&own_number=" + number + "&own_number_type=relative");
+    callApi(`lifeup://api/item?name=${itemName}&own_number=${number}&own_number_type=relative`);
 }
 
 function performDailyTask() {
@@ -615,37 +720,19 @@ function performDailyTask() {
     }
 }
 
-function scheduleDailyTask() {
-    // 获取当前时间
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentSecond = now.getSeconds();
+function initDailyTask() {
+    let execDailyTaskDateKey = "execDailyTaskDate";
 
-    // 计算下一个00:00:01的时间
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(0, 0, 1, 0); // 设置为00:00:01
-    if (now > nextMidnight) {
-        // 如果当前时间已经超过今天的00:00:01，则计算明天的00:00:01
-        nextMidnight.setDate(now.getDate() + 1);
-    }
+    setInterval(() => {
+        let execDailyTaskDate = lifeUpStorage.get(execDailyTaskDateKey, -1);
+        let curDate = new Date().getDate();
 
-    // 计算时间差
-    const timeDifference = nextMidnight - now;
-
-    // 设置定时任务
-    setTimeout(() => {
-        performDailyTask();
-
-        // 每24小时执行一次任务
-        setInterval(performDailyTask, 24 * 60 * 60 * 1000);
-    }, timeDifference);
-
-    // 打印距离执行定时任务的时间
-    const hours = Math.floor(timeDifference / (1000 * 60 * 60));
-    const minutes = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((timeDifference % (1000 * 60)) / 1000);
-    console.log(`距离执行定时任务还有${hours}时${minutes}分${seconds}秒`);
+        if (curDate !== execDailyTaskDate)
+        {
+            performDailyTask();
+            lifeUpStorage.put(execDailyTaskDateKey, curDate);
+        }
+    }, 60 * 1000);
 }
 
 // 开始监听APP运行
@@ -658,11 +745,7 @@ function startMonitoringApps() {
     console.log("开始监听APP运行");
 
     timerId = setInterval(() => {
-        appPackageNameList.forEach(packageName => {
-            if (isAppOpen(packageName)) {
-                handleAppOpen(packageName);
-            }
-        });
+        detect_rish_shell(foreground_app);
     }, 1000); // 每秒检查一次
 }
 
@@ -686,14 +769,24 @@ function handleAppOpen(packageName) {
             currentApp = packageName;
 
             if (currentItemId === 0) {
-                for (let itemId in itemInfo) {
-                    if (itemInfo[itemId].app === currentApp) {
-                        if (itemInfo[REST_COUPON_ID].time_left > 0) {
+                for (let item of itemInfo) {
+                    if (item.app === currentApp) {
+                        let itemTimeInfo = findObjectById(itemTimeLeftInfoList, item.id);
+                        if (itemTimeInfo && itemTimeInfo.time_left > 0) {
+                            currentItemId = item.id;
+                            break;
+                        }
+
+                        itemTimeInfo = findObjectById(itemTimeLeftInfoList, REST_COUPON_ID);
+                        if (itemTimeInfo && itemTimeInfo.time_left > 0) {
                             currentItemId = REST_COUPON_ID;
-                        } else if (itemInfo[itemId].time_left > 0) {
-                            currentItemId = itemId;
-                        } else if (itemInfo[FREE_COUPON_ID].time_left > 0) {
+                            break;
+                        }
+
+                        itemTimeInfo = findObjectById(itemTimeLeftInfoList, FREE_COUPON_ID);
+                        if (itemTimeInfo && itemTimeInfo.time_left > 0) {
                             currentItemId = FREE_COUPON_ID;
+                            break;
                         }
 
                         break;
@@ -706,11 +799,13 @@ function handleAppOpen(packageName) {
                     handleAppOpenWithoutItem(packageName);
                 }
             } else if (currentItemId !== FREE_COUPON_ID && 
-                       currentItemId !== REST_COUPON_ID && 
-                       packageName !== itemInfo[currentItemId].app) {
-                toastMethod("商品指定APP了，快切换APP吧", toastType.WARNING_TYPE);
-                console.log("未授权的应用，返回桌面");
-                setTimeout(() => { exitAppMethod(); currentApp = null; }, 500);
+                       currentItemId !== REST_COUPON_ID) {
+                let item = findObjectById(itemInfo, currentItemId);
+                if (packageName !== item.app) {
+                    toastMethod(`商品指定${item.name}APP了，快切换到${item.name}吧`, toastType.WARNING_TYPE);
+                    console.log("未授权的应用，返回桌面");
+                    setTimeout(() => { exitAppMethod(); currentApp = null; }, 500);
+                }
             }
         }
     } else {
@@ -729,18 +824,15 @@ function handleAppOpen(packageName) {
 function handleAppOpenWithoutItem(packageName) {
     console.log(`handleAppOpenWithoutItem: packageName = ${packageName}`);
     currentItemId = REST_COUPON_ID; // 尝试使用休息券
-    console.log("使用休息券");
     callApi("lifeup://api/query?key=coin&broadcast=" + queryCoinString);
 }
 
-// 检查应用是否在运行
-function isAppOpen(packageName) {
-    let isOpen = (currentPackage() === packageName) || (currentActivity().includes(packageName));
-    if (isOpen && currentApp !== packageName) {
-        console.log(`isAppOpen: packageName = ${packageName}, isOpen = ${isOpen}`);
-    }
+function isAppOpen(inputString, packageName) {
+    let escapedPackageName = packageName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    let regexString = `windows=\\[Window.*${escapedPackageName}`;
+    let regex = new RegExp(regexString);
 
-    return isOpen;
+    return regex.test(inputString);
 }
 
 // 添加应用到监听列表
@@ -765,15 +857,15 @@ function resetState() {
 // 初始化
 function init() {
     init_iteminfo();
-    init_rish();
-    scheduleDailyTask();
+    init_rish_shell();
+    initDailyTask();
 
     //通过rish shell授权无障碍权限
     rish_shell(open_autojs_accessibility);
 
-    for (let itemId in itemInfo) {
-        if (itemInfo[itemId].app) {
-            addAppToList(itemInfo[itemId].app);
+    for (let item of itemInfo) {
+        if (item.app) {
+            addAppToList(item.app);
         }
     }
 
@@ -787,6 +879,7 @@ events.on("exit", function() {
 
     stopMonitoringApps();
     rish_sh.exit();
+    detect_rish_sh.exit();
 });
 
 // 初始化
