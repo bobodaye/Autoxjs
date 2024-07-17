@@ -132,7 +132,9 @@ function updateItemTimeLeft(itemID, itemName, itemTimeLeft)
 }
 
 const rish_dir = "/data/data/org.autojs.autoxjs.v6/files/";
-const open_autojs_accessibility = "settings put secure enabled_accessibility_services org.autojs.autoxjs.v6/com.stardust.autojs.core.accessibility.AccessibilityService";
+const autojs_accessibility = "org.autojs.autoxjs.v6/com.stardust.autojs.core.accessibility.AccessibilityService";
+const open_accessibility_cmd = "settings put secure enabled_accessibility_services";
+const get_accessibility_cmd = "settings get secure enabled_accessibility_services";
 const foreground_app = "dumpsys activity activities | grep \"windows=\\[W\" | sed -n '1p'";
 let rish_sh = new Shell();
 let detect_rish_sh = new Shell();
@@ -313,6 +315,12 @@ function rish_shell(cmd) {
 
 function detect_rish_shell(cmd) {
     detect_rish_sh.exec(cmd);
+}
+
+function initAccessibility() {
+    rish_shell(`accessibility=$(${get_accessibility_cmd})`);
+    rish_shell(`result=$(echo -n "$accessibility" | grep ${autojs_accessibility})`);
+    rish_shell(`test -z "$result" && ${open_accessibility_cmd} "$accessibility":${autojs_accessibility}`);
 }
 
 function exitAppMethod() {
@@ -876,10 +884,8 @@ function resetState() {
 function init() {
     init_iteminfo();
     init_rish_shell();
+    initAccessibility();
     initDailyTask();
-
-    //通过rish shell授权无障碍权限
-    rish_shell(open_autojs_accessibility);
 
     for (let item of itemInfo) {
         if (item.app) {
